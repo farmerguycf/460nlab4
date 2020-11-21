@@ -70,8 +70,8 @@ enum CS_BITS {
     GATE_MARMUX,                //GateMARMUX
     GATE_SHF,                   //GateSHF
     PCMUX1, PCMUX0,             //PCMUX1 PCMUX0 
-    DRMUX0, DRMUX1,             //DRMUX0 DRMUX1
-    SR1MUX0, SR1MUX1,           //SR1MUX0 SR1MUX1
+    DRMUX, DRMUX1,             //DRMUX0 DRMUX1
+    SR1MUX, SR1MUX1,           //SR1MUX0 SR1MUX1
     ADDR1MUX,                   //ADDR1MUX
     ADDR2MUX1, ADDR2MUX0,       //ADDR2MUX1, ADDR2MUX0
     MARMUX,                     //MARMUX
@@ -97,7 +97,7 @@ enum CS_BITS {
     ld_un,                      //
     ld_cmp,                     //
     sel_vec,                    //
-    ld_exc                      //
+    ld_exc,                     //
     CONTROL_STORE_BITS          //
 } CS_BITS;
 
@@ -190,7 +190,11 @@ int INTV; /* Interrupt vector register */
 int EXCV; /* Exception vector register */
 int SSP; /* Initial value of system stack pointer */
 /* MODIFY: You may add system latches that are required by your implementation */
-
+int PSRReg;
+int protection;
+int unaligned;
+int opcode;
+int interrupt;
 } System_Latches;
 
 /* Data Structure for Latch */
@@ -604,20 +608,54 @@ int main(int argc, char *argv[]) {
    Begin your code here 	  			       */
 /***************************************************************/
 
-
+int cycleCount, memPath, pcRes, addrRes, marmuxRes, mdrRes, aluRes, shfRes, interrupt;
 void eval_micro_sequencer() {
 
+   int *microInst = CURRENT_LATCHES.MICROINSTRUCTION;
+   if(CYCLE_COUNT == 300){
+     CURRENT_LATCHES.interrupt = 1;
+     NEXT_LATCHES.interrupt = 1;
+   }
+   if(CYCLE_COUNT == 0){CURRENT_LATCHES.PSRReg = 0x8000;}
+   CURRENT_LATCHES.INTV = NEXT_LATCHES.INTV =  0x0200;
+   if(microInst[ld_exc]){
+      int dataSize = microInst[DATA_SIZE];
+      int mar0 = CURRENT_LATCHES.MAR;
+      int restriction = 0x2FFF;
+
+      int opcode = (CURRENT_LATCHES.IR >> 12) & 0x000f;
+      int psr15 = (CURRENT_LATCHES.PSRReg >> 15) & 0x0001;
+
+      CURRENT_LATCHES.unaligned = dataSize & (mar0 & 0x0001) & psr15;
+      NEXT_LATCHES.unaligned = CURRENT_LATCHES.unaligned;
+      if ((mar0 <= restriction) && (psr15 == 1)){ CURRENT_LATCHES.protection = 1;}
+      else { CURRENT_LATCHES.protection = 0; }
+      NEXT_LATCHES.protection = CURRENT_LATCHES.protection;
+      if (((opcode == 0x000a) || (opcode == 0x000b)) & psr15){ CURRENT_LATCHES.opcode = 1; }
+      else { CURRENT_LATCHES.opcode = 0; }
+      NEXT_LATCHES.opcode = CURRENT_LATCHES.opcode;
+   }
+   
    int cond1 = CURRENT_LATCHES.MICROINSTRUCTION[1];
    int cond0 = CURRENT_LATCHES.MICROINSTRUCTION[2];
+   int cond2 = CURRENT_LATCHES.MICROINSTRUCTION[3];
    int ben = CURRENT_LATCHES.BEN;
    int r = CURRENT_LATCHES.READY;
+   int protection = CURRENT_LATCHES.protection;
+   int unaligned = CURRENT_LATCHES.unaligned;
+   if(CURRENT_LATCHES.STATE_NUMBER == 18){
+     interrupt = CURRENT_LATCHES.interrupt;
+     NEXT_LATCHES.interrupt = 0;
+   }
+ 
+   
    int ir11 = (CURRENT_LATCHES.IR & 0x00000800)>>11;
-   int j0 = CURRENT_LATCHES.MICROINSTRUCTION[8] || (ir11 && cond0 && cond1);
-   int j1 = (CURRENT_LATCHES.MICROINSTRUCTION[7] || (r && cond0 && !cond1))<<1;
-   int j2 = (CURRENT_LATCHES.MICROINSTRUCTION[6] || (ben && !cond0 && cond1))<<2;
-   int j3 = CURRENT_LATCHES.MICROINSTRUCTION[5]<<3;
-   int j4 = CURRENT_LATCHES.MICROINSTRUCTION[4]<<4;
-   int j5 = CURRENT_LATCHES.MICROINSTRUCTION[3]<<5;
+   int j0 = CURRENT_LATCHES.MICROINSTRUCTION[J0] || (ir11 && cond0 && cond1);
+   int j1 = (CURRENT_LATCHES.MICROINSTRUCTION[J1] || (r && cond0 && !cond1))<<1;
+   int j2 = (CURRENT_LATCHES.MICROINSTRUCTION[J2] || (ben && !cond0 && cond1))<<2;
+   int j3 = (CURRENT_LATCHES.MICROINSTRUCTION[J3] || (cond2 && interrupt))<<3;
+   int j4 = CURRENT_LATCHES.MICROINSTRUCTION[J4]<<4;
+   int j5 = (CURRENT_LATCHES.MICROINSTRUCTION[J5] || protection || unaligned)<< 5;
    int jReg = j0 | j1 | j2 | j3 | j4 | j5;
    int ird = GetIRD(CURRENT_LATCHES.MICROINSTRUCTION);
    int instruction = (CURRENT_LATCHES.IR & 0x0000f000)>>12;
@@ -674,7 +712,7 @@ void cycle_memory() {
 }
 
 
-
+int psrRes, vecReg, spRes, pc_2Out;
 void eval_bus_drivers() {
 
    int* microInst = CURRENT_LATCHES.MICROINSTRUCTION;
@@ -730,10 +768,99 @@ void eval_bus_drivers() {
         if(data & 0x0080){mdrRes = Low16bits(data | 0xff00);}
         else{mdrRes = Low16bits(data);}
       }   
+   }
+
+
+  // sr2mux
+  int sr2mux;
+  int imm5 = CURRENT_LATCHES.IR & 0x0020;
+  if(!imm5){
+    int sr2 = CURRENT_LATCHES.IR & 0x0007;
+    sr2mux = Low16bits(CURRENT_LATCHES.REGS[sr2]);
+  }
+  else{
+    imm5 = CURRENT_LATCHES.IR & 0x001f;
+    if(imm5 & 0x0010){imm5 = imm5 | 0xffe0;}
+    sr2mux = Low16bits(imm5);
+  } 
+  
+  //aluRes
+  int sr1;
+   sr1 = (CURRENT_LATCHES.IR & 0x01c0)>>6;
+   if(microInst[SR1MUX1]){ sr1 = 6;}
+  int firstReg = Low16bits(CURRENT_LATCHES.REGS[sr1]);
+  int scndReg = Low16bits(sr2mux);
+  if(GetALUK(microInst)==0){
+    aluRes = Low16bits(firstReg + scndReg);
+  }
+  if(GetALUK(microInst)==1){
+    aluRes = Low16bits(firstReg & scndReg);
+  }
+  if(GetALUK(microInst)==2){
+    aluRes = Low16bits(firstReg ^ scndReg);
+  }
+  if(GetALUK(microInst)==3){
+    if(!GetSR1MUX(microInst)){sr1 = Low16bits(CURRENT_LATCHES.IR >> 9) & 0x0007;}
+    if(microInst[SR1MUX1]){ sr1 = 6;}
+    aluRes = Low16bits(CURRENT_LATCHES.REGS[sr1]);   
+  }
+  //shfRes
+  int shfNum = CURRENT_LATCHES.IR & 0x000f;
+  if(CURRENT_LATCHES.IR & 0x0010){
+    if(!(CURRENT_LATCHES.IR & 0x0020)){shfRes = Low16bits(firstReg >> shfNum);}
+    else{ 
+	if(firstReg & 0x8000){
+          for (int i = 0; i < shfNum; i++) { firstReg = Low16bits((firstReg >> 1) | 0x8000); }
+          shfRes = Low16bits(firstReg);
+      	}else { shfRes = Low16bits(firstReg >> shfNum); }          
+    }
+  } else{shfRes = Low16bits(firstReg << shfNum);}
+//}
+  
+  //psrRes
+  if(microInst[gate_psr]){
+    psrRes = Low16bits(CURRENT_LATCHES.PSRReg);
+  }
+  
+  // vecReg res
+  if(microInst[ld_vec]){
+    if(interrupt){
+      vecReg = CURRENT_LATCHES.INTV + (0x01 << 1);
+      interrupt = 0;
+    }else if(CURRENT_LATCHES.protection){
+      vecReg = CURRENT_LATCHES.INTV + (0x02 << 1);
+      NEXT_LATCHES.protection = 0;
+    }else if(CURRENT_LATCHES.unaligned){
+      vecReg = CURRENT_LATCHES.INTV + (0x03 << 1);
+    }else if(CURRENT_LATCHES.opcode){
+      vecReg = CURRENT_LATCHES.INTV + (0x04 << 1);
+    }
+  }
+  // spRes
+  if(microInst[gate_sp]){
+    if(microInst[SR1MUX1]){
+      if((microInst[sp_mux0] == 0) && (microInst[sp_mux1]==0)){
+        spRes = Low16bits(CURRENT_LATCHES.REGS[6]);
+      }
+      if((microInst[sp_mux0] == 0) && (microInst[sp_mux1]==1)){
+        spRes = Low16bits(CURRENT_LATCHES.SSP);
+      }
+      if((microInst[sp_mux0] == 1) && (microInst[sp_mux1]==0)){
+        spRes = Low16bits(CURRENT_LATCHES.REGS[6] + 2);
+      }
+      if((microInst[sp_mux0] == 1) && (microInst[sp_mux1]==1)){
+        spRes = Low16bits(CURRENT_LATCHES.REGS[6] - 2);
+      }
+    }    
+  }
+
+ // pc-2 res
+ if(microInst[gate_pc_2]){
+   pc_2Out = Low16bits(CURRENT_LATCHES.PC - 2);  
+ }
 
 }
 
-}
 void drive_bus() {
 
   int* microInst = CURRENT_LATCHES.MICROINSTRUCTION;
@@ -743,6 +870,10 @@ void drive_bus() {
     else if (GetGATE_MDR(microInst)) { BUS = mdrRes; }         
     else if (GetGATE_SHF(microInst)) { BUS = shfRes; }         
     else if (GetGATE_MARMUX(microInst)) { BUS = marmuxRes; }   
+    else if (microInst[gate_psr]){ BUS = psrRes;}
+    else if (microInst[gate_vec]){BUS = vecReg;}
+    else if (microInst[gate_sp]){BUS = spRes;}
+    else if (microInst[gate_pc_2]){BUS = pc_2Out;}
     else { BUS = BUS; }       
 
 }
@@ -785,6 +916,7 @@ void latch_datapath_values() {
    if(GetLD_REG(microInst)){
        int destR = Low16bits((CURRENT_LATCHES.IR & 0x0e00) >> 9);
        if (GetDRMUX(microInst)) { destR = 7; }
+       if (microInst[DRMUX1]){destR = 6;}
           CURRENT_LATCHES.REGS[destR] = Low16bits(BUS);
     }
 
@@ -808,6 +940,14 @@ void latch_datapath_values() {
             NEXT_LATCHES.Z = 0;
             NEXT_LATCHES.N = 1;
         }
-    }      
+    }
+   if(microInst[psr_mux]){
+    NEXT_LATCHES.PSRReg = 0;
+   }else if(microInst[ld_psr]){
+      NEXT_LATCHES.PSRReg = Low16bits(BUS);
+    }else{
+         int PSR = CURRENT_LATCHES.PSRReg & 0x8000 | (NEXT_LATCHES.N << 2) | (NEXT_LATCHES.Z << 1) | (NEXT_LATCHES.P);
+         NEXT_LATCHES.PSRReg = PSR;
+   }
 
 }
