@@ -191,6 +191,7 @@ int EXCV; /* Exception vector register */
 int SSP; /* Initial value of system stack pointer */
 /* MODIFY: You may add system latches that are required by your implementation */
 int PSRReg;
+int USPReg;
 int protection;
 int unaligned;
 int opcode;
@@ -616,7 +617,10 @@ void eval_micro_sequencer() {
      CURRENT_LATCHES.interrupt = 1;
      NEXT_LATCHES.interrupt = 1;
    }
-   if(CYCLE_COUNT == 0){CURRENT_LATCHES.PSRReg = 0x8000;}
+   if(CYCLE_COUNT == 0){
+     CURRENT_LATCHES.PSRReg = 0x8000;
+     CURRENT_LATCHES.USPReg = 0xfe00;
+   }
    CURRENT_LATCHES.INTV = NEXT_LATCHES.INTV =  0x0200;
    if(microInst[ld_exc]){
       int dataSize = microInst[DATA_SIZE];
@@ -853,6 +857,17 @@ void eval_bus_drivers() {
       }
     }    
   }
+ // ssp / usp register loading
+  if(microInst[ld_usp]){
+    NEXT_LATCHES.USPReg = CURRENT_LATCHES.REGS[6];
+  }
+  else if(microInst[ld_ssp]){
+    NEXT_LATCHES.SSP = CURRENT_LATCHES.REGS[6];
+  }
+  else{
+    NEXT_LATCHES.USPReg = CURRENT_LATCHES.USPReg;
+    NEXT_LATCHES.SSP = CURRENT_LATCHES.SSP;
+  }
 
  // pc-2 res
  if(microInst[gate_pc_2]){
@@ -947,7 +962,7 @@ void latch_datapath_values() {
       NEXT_LATCHES.PSRReg = Low16bits(BUS);
     }else{
          int PSR = CURRENT_LATCHES.PSRReg & 0x8000 | (NEXT_LATCHES.N << 2) | (NEXT_LATCHES.Z << 1) | (NEXT_LATCHES.P);
-         NEXT_LATCHES.PSRReg = PSR;
+         NEXT_LATCHES.PSRReg = Low16bits(PSR);
    }
 
 }
