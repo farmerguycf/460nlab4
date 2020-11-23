@@ -191,6 +191,7 @@ int EXCV; /* Exception vector register */
 int SSP; /* Initial value of system stack pointer */
 /* MODIFY: You may add system latches that are required by your implementation */
 int PSRReg;
+int USPReg;
 int protection;
 int unaligned;
 int opcode;
@@ -853,6 +854,13 @@ void eval_bus_drivers() {
       }
     }    
   }
+ // ssp / usp register loading
+  if(microInst[ld_usp]){
+    NEXT_LATCHES.USPReg = CURRENT_LATCHES.REGS[6];
+  }
+  if(microInst[ld_ssp]){
+    CURRENT_LATCHES.SSP = CURRENT_LATCHES.REGS[6];
+  }
 
  // pc-2 res
  if(microInst[gate_pc_2]){
@@ -947,7 +955,7 @@ void latch_datapath_values() {
       NEXT_LATCHES.PSRReg = Low16bits(BUS);
     }else{
          int PSR = CURRENT_LATCHES.PSRReg & 0x8000 | (NEXT_LATCHES.N << 2) | (NEXT_LATCHES.Z << 1) | (NEXT_LATCHES.P);
-         NEXT_LATCHES.PSRReg = PSR;
+         NEXT_LATCHES.PSRReg = Low16bits(PSR);
    }
 
 }
