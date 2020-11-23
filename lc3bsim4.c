@@ -617,7 +617,10 @@ void eval_micro_sequencer() {
      CURRENT_LATCHES.interrupt = 1;
      NEXT_LATCHES.interrupt = 1;
    }
-   if(CYCLE_COUNT == 0){CURRENT_LATCHES.PSRReg = 0x8000;}
+   if(CYCLE_COUNT == 0){
+     CURRENT_LATCHES.PSRReg = 0x8000;
+     CURRENT_LATCHES.USPReg = 0xfe00;
+   }
    CURRENT_LATCHES.INTV = NEXT_LATCHES.INTV =  0x0200;
    if(microInst[ld_exc]){
       int dataSize = microInst[DATA_SIZE];
@@ -858,8 +861,12 @@ void eval_bus_drivers() {
   if(microInst[ld_usp]){
     NEXT_LATCHES.USPReg = CURRENT_LATCHES.REGS[6];
   }
-  if(microInst[ld_ssp]){
-    CURRENT_LATCHES.SSP = CURRENT_LATCHES.REGS[6];
+  else if(microInst[ld_ssp]){
+    NEXT_LATCHES.SSP = CURRENT_LATCHES.REGS[6];
+  }
+  else{
+    NEXT_LATCHES.USPReg = CURRENT_LATCHES.USPReg;
+    NEXT_LATCHES.SSP = CURRENT_LATCHES.SSP;
   }
 
  // pc-2 res
