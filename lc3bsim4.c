@@ -94,7 +94,7 @@ enum CS_BITS {
     ld_usp,                     //
     ld_ssp,                     // 
     gate_vec,                   //
-    ld_un,                      //
+    op_ex,                      //
     ld_cmp,                     //
     sel_vec,                    //
     ld_exc,                     //
@@ -818,7 +818,7 @@ void eval_bus_drivers() {
       NEXT_LATCHES.protection = 0;
     }else if(CURRENT_LATCHES.unaligned){
       vecReg = CURRENT_LATCHES.INTV + (0x03 << 1);
-    }else if(CURRENT_LATCHES.opcode){
+    }else if(microInst[op_ex]){
       vecReg = CURRENT_LATCHES.INTV + (0x04 << 1);
     }
   }
@@ -904,6 +904,8 @@ void latch_datapath_values() {
             NEXT_LATCHES.MICROINSTRUCTION[i] = CONTROL_STORE[NEXT_LATCHES.STATE_NUMBER][i];
       	 }
       }
+      NEXT_LATCHES.unaligned = CURRENT_LATCHES.unaligned;
+      NEXT_LATCHES.protection = CURRENT_LATCHES.protection;
    }
    
    if(GetLD_MDR(microInst)){
