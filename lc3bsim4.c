@@ -623,31 +623,12 @@ void eval_micro_sequencer() {
      CURRENT_LATCHES.REGS[6] = CURRENT_LATCHES.USPReg;
    }
    CURRENT_LATCHES.INTV = NEXT_LATCHES.INTV =  0x0200;
-   if(microInst[ld_exc]){
-      int dataSize = microInst[DATA_SIZE];
-      int mar0 = CURRENT_LATCHES.MAR;
-      int restriction = 0x2FFF;
-
-      int opcode = (CURRENT_LATCHES.IR >> 12) & 0x000f;
-      int psr15 = (CURRENT_LATCHES.PSRReg >> 15) & 0x0001;
-
-      CURRENT_LATCHES.unaligned = dataSize & (mar0 & 0x0001) & psr15;
-      NEXT_LATCHES.unaligned = CURRENT_LATCHES.unaligned;
-      if ((mar0 <= restriction) && (psr15 == 1)){ CURRENT_LATCHES.protection = 1;}
-      else { CURRENT_LATCHES.protection = 0; }
-      NEXT_LATCHES.protection = CURRENT_LATCHES.protection;
-      if (((opcode == 0x000a) || (opcode == 0x000b)) & psr15){ CURRENT_LATCHES.opcode = 1; }
-      else { CURRENT_LATCHES.opcode = 0; }
-      NEXT_LATCHES.opcode = CURRENT_LATCHES.opcode;
-   }
    
    int cond1 = CURRENT_LATCHES.MICROINSTRUCTION[1];
    int cond0 = CURRENT_LATCHES.MICROINSTRUCTION[2];
    int cond2 = CURRENT_LATCHES.MICROINSTRUCTION[3];
    int ben = CURRENT_LATCHES.BEN;
    int r = CURRENT_LATCHES.READY;
-   int protection = CURRENT_LATCHES.protection;
-   int unaligned = CURRENT_LATCHES.unaligned;
    if(CURRENT_LATCHES.STATE_NUMBER == 18){
      interrupt = CURRENT_LATCHES.interrupt;
      NEXT_LATCHES.interrupt = 0;
@@ -660,7 +641,7 @@ void eval_micro_sequencer() {
    int j2 = (CURRENT_LATCHES.MICROINSTRUCTION[J2] || (ben && !cond0 && cond1))<<2;
    int j3 = (CURRENT_LATCHES.MICROINSTRUCTION[J3] || (cond2 && interrupt))<<3;
    int j4 = CURRENT_LATCHES.MICROINSTRUCTION[J4]<<4;
-   int j5 = (CURRENT_LATCHES.MICROINSTRUCTION[J5] || protection || unaligned)<< 5;
+   int j5 = (CURRENT_LATCHES.MICROINSTRUCTION[J5])<< 5;
    int jReg = j0 | j1 | j2 | j3 | j4 | j5;
    int ird = GetIRD(CURRENT_LATCHES.MICROINSTRUCTION);
    int instruction = (CURRENT_LATCHES.IR & 0x0000f000)>>12;
@@ -906,6 +887,30 @@ void latch_datapath_values() {
    }else{NEXT_LATCHES.PC = CURRENT_LATCHES.PC;}
       
    if(GetLD_MAR(microInst)){NEXT_LATCHES.MAR = Low16bits(BUS);}
+   if(microInst[ld_exc]){
+      int dataSize = microInst[DATA_SIZE];
+      int mar0 = CURRENT_LATCHES.MAR;
+      int restriction = 0x2FFF;
+
+      int opcode = (CURRENT_LATCHES.IR >> 12) & 0x000f;
+      int psr15 = (CURRENT_LATCHES.PSRReg >> 15) & 0x0001;
+
+      CURRENT_LATCHES.unaligned = dataSize & (mar0 & 0x0001) & psr15;
+      NEXT_LATCHES.unaligned = CURRENT_LATCHES.unaligned;
+      if ((mar0 <= restriction) && (psr15 == 1)){ CURRENT_LATCHES.protection = 1;}
+      else { CURRENT_LATCHES.protection = 0; }
+      NEXT_LATCHES.protection = CURRENT_LATCHES.protection;
+      if (((opcode == 0x000a) || (opcode == 0x000b)) & psr15){ CURRENT_LATCHES.opcode = 1; }
+      else { CURRENT_LATCHES.opcode = 0; }
+      NEXT_LATCHES.opcode = CURRENT_LATCHES.opcode;
+      int j5 = (CURRENT_LATCHES.MICROINSTRUCTION[J5] || protection || unaligned)<< 5;
+      if(j5){
+         NEXT_LATCHES.STATE_NUMBER = NEXT_LATCHES.STATE_NUMBER || j5;
+         for(int i = 0; i< CONTROL_STORE_BITS;i++){
+            NEXT_LATCHES.MICROINSTRUCTION[i] = CONTROL_STORE[NEXT_LATCHES.STATE_NUMBER][i];
+      	 }
+      }
+   }
    
    if(GetLD_MDR(microInst)){
       if(GetMIO_EN(microInst)){NEXT_LATCHES.MDR = Low16bits(memPath);}
