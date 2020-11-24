@@ -620,6 +620,7 @@ void eval_micro_sequencer() {
    if(CYCLE_COUNT == 0){
      CURRENT_LATCHES.PSRReg = 0x8000;
      CURRENT_LATCHES.USPReg = 0xfe00;
+     CURRENT_LATCHES.REGS[6] = CURRENT_LATCHES.USPReg;
    }
    CURRENT_LATCHES.INTV = NEXT_LATCHES.INTV =  0x0200;
    if(microInst[ld_exc]){
@@ -844,7 +845,7 @@ void eval_bus_drivers() {
   if(microInst[gate_sp]){
     if(microInst[SR1MUX1]){
       if((microInst[sp_mux0] == 0) && (microInst[sp_mux1]==0)){
-        spRes = Low16bits(CURRENT_LATCHES.REGS[6]);
+        spRes = Low16bits(CURRENT_LATCHES.USPReg);
       }
       if((microInst[sp_mux0] == 0) && (microInst[sp_mux1]==1)){
         spRes = Low16bits(CURRENT_LATCHES.SSP);
