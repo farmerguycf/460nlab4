@@ -889,23 +889,17 @@ void latch_datapath_values() {
    if(GetLD_MAR(microInst)){NEXT_LATCHES.MAR = Low16bits(BUS);}
    if(microInst[ld_exc]){
       int dataSize = microInst[DATA_SIZE];
-      int mar0 = CURRENT_LATCHES.MAR;
-      int restriction = 0x2FFF;
+      int mar0 = NEXT_LATCHES.MAR;
+      int limit = 0x2FFF;
 
-      int opcode = (CURRENT_LATCHES.IR >> 12) & 0x000f;
       int psr15 = (CURRENT_LATCHES.PSRReg >> 15) & 0x0001;
 
       CURRENT_LATCHES.unaligned = dataSize & (mar0 & 0x0001) & psr15;
-      NEXT_LATCHES.unaligned = CURRENT_LATCHES.unaligned;
-      if ((mar0 <= restriction) && (psr15 == 1)){ CURRENT_LATCHES.protection = 1;}
+      if ((mar0 <= limit) && (psr15 == 1)){ CURRENT_LATCHES.protection = 1;}
       else { CURRENT_LATCHES.protection = 0; }
-      NEXT_LATCHES.protection = CURRENT_LATCHES.protection;
-      if (((opcode == 0x000a) || (opcode == 0x000b)) & psr15){ CURRENT_LATCHES.opcode = 1; }
-      else { CURRENT_LATCHES.opcode = 0; }
-      NEXT_LATCHES.opcode = CURRENT_LATCHES.opcode;
-      int j5 = (CURRENT_LATCHES.MICROINSTRUCTION[J5] || protection || unaligned)<< 5;
+      int j5 = (CURRENT_LATCHES.MICROINSTRUCTION[J5] || CURRENT_LATCHES.protection || CURRENT_LATCHES.unaligned)<< 5;
       if(j5){
-         NEXT_LATCHES.STATE_NUMBER = NEXT_LATCHES.STATE_NUMBER || j5;
+         NEXT_LATCHES.STATE_NUMBER = NEXT_LATCHES.STATE_NUMBER | j5;
          for(int i = 0; i< CONTROL_STORE_BITS;i++){
             NEXT_LATCHES.MICROINSTRUCTION[i] = CONTROL_STORE[NEXT_LATCHES.STATE_NUMBER][i];
       	 }
