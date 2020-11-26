@@ -1,28 +1,36 @@
 .orig x3000
 
-AND R0, R0, #0		;Clear R0
-AND R5, R5, #0		;Clear R5
-ADD R5, R5, #20		;R5 = 20
-LEA R2, START		;R2 = xC000
-LDW R2, R2, #0		;R2 = M[xC000]
+and r0, r0, #0		
+and r4, r4, #0	
+add r4, r4, #10	
+add r4, r4, #10
+lea r5, hex4
+ldw r5, r5, #0
+and r2, r2, #0
+add r2, r2, #1
+stb r2, r5, #0
+lea r5, begin		
+ldw r5, r5, #0	
 
-A 	LDB R1, R2, #0	;R1 = (1B) M[R2]
-	ADD R2, R2, #1	;R2 = R2 + 1
-	ADD R0, R0, R1	;R0 += R1
-	ADD R5, R5, #-1	;R5 -= 1
-	BRp A			;Loop
+rep ldb r1, r5, #0	
+    add r5, r5, #1
+    add r0, r0, r1	
+    add r4, r4, #-1	
+    brp rep
 
-LEA R3, SAVE		;R3 = xC014
-LDW R3, R3, #0		;R3 = M[xC014]
-LEA R2, MASK		;R2 = x00FF
-LDW R2, R2, #0		;R2 = M[R2]
-AND R0, R0, R2		;R0 = R0 && x00FF
-STW R0, R3, #0		;R0 -> xC014
-JMP R0
+lea r5, store
+ldw r5, r5, #0
+stw r0, r5, #0
+lea r3, zero		
+ldw r3, r3, #0		
+stw r0, r3, #0	
+jmp r0
 
-HALT
+halt
 
-START .fill xC000
-SAVE  .fill xC014
-MASK  .fill x00FF
+begin 	.fill xc000
+zero 	.fill x0000
+store  	.fill xc014
+unal  	.fill xc017
+hex4  	.fill x4000
 .end

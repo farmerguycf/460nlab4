@@ -620,7 +620,6 @@ void eval_micro_sequencer() {
    if(CYCLE_COUNT == 0){
      CURRENT_LATCHES.PSRReg = 0x8000;
      CURRENT_LATCHES.USPReg = 0xfe00;
-     CURRENT_LATCHES.REGS[6] = CURRENT_LATCHES.USPReg;
    }
    CURRENT_LATCHES.INTV = NEXT_LATCHES.INTV =  0x0200;
    
@@ -874,6 +873,19 @@ void drive_bus() {
     else { BUS = BUS; }       
 
 }
+void flushRes() {
+   pcRes = 0;
+   aluRes = 0;
+   mdrRes = 0;
+   shfRes = 0;
+   marmuxRes = 0;
+   psrRes = 0;
+   spRes = 0;
+   pc_2Out = 0;
+   BUS = 0;
+   memPath = 0;
+   addrRes = 0;
+}
 
 
 void latch_datapath_values() {
@@ -885,6 +897,15 @@ void latch_datapath_values() {
      else if(GetPCMUX(microInst)==2){NEXT_LATCHES.PC = Low16bits(addrRes);}
      else if(GetPCMUX(microInst)==0){NEXT_LATCHES.PC = Low16bits(CURRENT_LATCHES.PC + 2);}     
    }else{NEXT_LATCHES.PC = CURRENT_LATCHES.PC;}
+ //  if(microInst[ld_exc]){
+ //    int psr15 = (CURRENT_LATCHES.PSRReg >> 15) & 0x0001;
+ //    int pc = NEXT_LATCHES.PC & 0x0001;
+ //    int limit = 0x2FFF;
+ //     if ((pc <= limit) && (psr15 == 1)){ 
+ //           CURRENT_LATCHES.protection = 1;
+ //     }
+ //     CURRENT_LATCHES.unaligned = pc & psr15;
+ //  }
       
    if(GetLD_MAR(microInst)){NEXT_LATCHES.MAR = Low16bits(BUS);}
    if(microInst[ld_exc]){
@@ -895,7 +916,10 @@ void latch_datapath_values() {
       int psr15 = (CURRENT_LATCHES.PSRReg >> 15) & 0x0001;
 
       CURRENT_LATCHES.unaligned = dataSize & (mar0 & 0x0001) & psr15;
-      if ((mar0 <= limit) && (psr15 == 1)){ CURRENT_LATCHES.protection = 1;}
+      if ((mar0 <= limit) && (psr15 == 1)){ 
+            
+            CURRENT_LATCHES.protection = 1;
+      }
       else { CURRENT_LATCHES.protection = 0; }
       int j5 = (CURRENT_LATCHES.MICROINSTRUCTION[J5] || CURRENT_LATCHES.protection || CURRENT_LATCHES.unaligned)<< 5;
       if(j5){
@@ -962,9 +986,12 @@ void latch_datapath_values() {
     NEXT_LATCHES.PSRReg = 0;
    }else if(microInst[ld_psr]){
       NEXT_LATCHES.PSRReg = Low16bits(BUS);
+      if (BUS & 0x0001){NEXT_LATCHES.P = 1;}
+      else if(BUS & 0x0002){NEXT_LATCHES.Z = 1;}
+      else if(BUS & 0x0004){NEXT_LATCHES.N = 1;}
     }else{
          int PSR = CURRENT_LATCHES.PSRReg & 0x8000 | (NEXT_LATCHES.N << 2) | (NEXT_LATCHES.Z << 1) | (NEXT_LATCHES.P);
          NEXT_LATCHES.PSRReg = Low16bits(PSR);
    }
-
+   flushRes();
 }
